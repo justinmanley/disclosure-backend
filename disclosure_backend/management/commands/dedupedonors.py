@@ -32,6 +32,8 @@ import MySQLdb
 import MySQLdb.cursors
 
 import dedupe
+import dedupe.variables.address
+import dedupe.variables.name
 
 # ## Logging
 
@@ -65,14 +67,14 @@ start_time = time.time()
 
 # We use Server Side cursors (SSDictCursor and SSCursor) to [avoid
 # having to have enormous result sets in memory](http://stackoverflow.com/questions/1808150/how-to-efficiently-use-mysqldb-sscursor).
-con = MySQLdb.connect(db='contributions',
+con = MySQLdb.connect(db='calaccess_raw',
                       charset='utf8',
                       read_default_file = MYSQL_CNF, 
                       cursorclass=MySQLdb.cursors.SSDictCursor)
 c = con.cursor()
 c.execute("SET net_write_timeout = 3600")
 
-con2 = MySQLdb.connect(db='contributions',
+con2 = MySQLdb.connect(db='calaccess_raw',
                        charset='utf8',
                        read_default_file = MYSQL_CNF, 
                        cursorclass=MySQLdb.cursors.SSCursor)
@@ -86,8 +88,7 @@ c2.execute("SET net_write_timeout = 3600")
 # We did a fair amount of preprocessing of the fields in
 # `mysql_init_db.py`
 
-DONOR_SELECT = "SELECT donor_id, city, name, zip, state, address, " \
-               "occupation, employer, person from processed_donors"
+DONOR_SELECT = "SELECT name, donor_id, occupation, employer, address, committee_id FROM donors"
 
 # ## Training
 
@@ -102,20 +103,14 @@ else:
     # The address, city, and zip fields are often missing, so we'll
     # tell dedupe that, and we'll learn a model that take that into
     # account
-    fields = [{'field' : 'name', 'variable name' : 'name',
-               'type': 'String'},
-              {'field' : 'address', 'type': 'String', 
-               'variable name' : 'address', 'has missing' : True},
-              {'field' : 'city', 'type': 'String', 'has missing' : True},
-              {'field' : 'state', 'type': 'String', 'has missing': True },
-              {'field' : 'zip', 'type': 'String', 'has missing' : True},
-              {'field' : 'person', 'variable name' : 'person',
-               'type' : 'Exists'},
-              {'type' : 'Interaction',
-               'interaction variables' : ['person', 'address']},
-              {'type' : 'Interaction', 
-               'interaction variables' : ['name', 'address']}
-              ]
+    fields = [
+	{ 'field': 'name', 'variable name': 'name', 'type': 'Name', 'has missing': True },
+	{ 'field': 'occupation', 'variable name': 'occupation', 'type': 'String', 'has missing': True },
+	{ 'field': 'employer', 'variable name': 'employer', 'type': 'String', 'has missing': True },
+	{ 'field': 'address', 'variable name': 'address', 'type': 'Address', 'has missing': True },
+	{ 'field': 'committee_id', 'variable name': 'committee_id', 'type': 'String', 'has missing': True },
+	{ 'type': 'Interaction', 'interaction variables': ['name', 'address'] }
+    ]
 
     # Create a new deduper object and pass our data model to it.
     deduper = dedupe.Dedupe(fields, num_cores=4)
