@@ -56,8 +56,8 @@ logging.getLogger().setLevel(log_level)
 # ## Setup
 MYSQL_CNF = os.path.abspath('.') + '/mysql.cnf'
 
-settings_file = 'mysql_example_settings'
-training_file = 'mysql_example_training.json'
+settings_file = 'calaccess_raw_dedupe_settings'
+training_file = 'calaccess_raw_dedupe_training.json'
 
 start_time = time.time()
 
@@ -85,8 +85,7 @@ c2.execute("SET net_write_timeout = 3600")
 # We'll be using variations on this following select statement to pull
 # in campaign donor info.
 #
-# We did a fair amount of preprocessing of the fields in
-# `mysql_init_db.py`
+# We did a fair amount of preprocessing of the fields in donors.sql.
 
 DONOR_SELECT = "SELECT name, donor_id, occupation, employer, address, committee_id FROM donors"
 
@@ -95,7 +94,7 @@ DONOR_SELECT = "SELECT name, donor_id, occupation, employer, address, committee_
 if os.path.exists(settings_file):
     print('reading from ', settings_file)
     with open(settings_file, 'rb') as sf :
-        deduper = dedupe.StaticDedupe(sf, num_cores=4)
+        deduper = dedupe.StaticDedupe(sf, num_cores=2)
 else:
 
     # Define the fields dedupe will pay attention to
@@ -113,7 +112,7 @@ else:
     ]
 
     # Create a new deduper object and pass our data model to it.
-    deduper = dedupe.Dedupe(fields, num_cores=4)
+    deduper = dedupe.Dedupe(fields, num_cores=2)
 
     # We will sample pairs from the entire donor table for training
     c.execute(DONOR_SELECT)
@@ -189,8 +188,7 @@ c.execute("CREATE TABLE blocking_map "
 print('creating inverted index')
 
 for field in deduper.blocker.index_fields :
-    print(field)
-    c2.execute("SELECT DISTINCT %s FROM processed_donors" % field)
+    c2.execute("SELECT DISTINCT %s FROM donors" % field)
     field_data = (row[0] for row in c2 if row[0] != None)
     deduper.blocker.index(field_data, field)
 
@@ -210,7 +208,7 @@ step_size = 30000
 # We will also speed up the writing by of blocking map by using 
 # parallel database writers
 def dbWriter(sql, rows) :
-    conn = MySQLdb.connect(db='contributions',
+    conn = MySQLdb.connect(db='calaccess_raw',
                            charset='utf8',
                            read_default_file = MYSQL_CNF) 
 
@@ -357,11 +355,11 @@ def candidates_gen(result_set) :
     if records :
         yield records
 
-c.execute("SELECT donor_id, city, name, "
-          "zip, state, address, "
-          "occupation, employer, person, block_id, smaller_ids "
+c.execute("SELECT donor_id, address, name, "
+          "occupation, employer, committee_id, "
+          "block_id, smaller_ids "
           "FROM smaller_coverage "
-          "INNER JOIN processed_donors "
+          "INNER JOIN donors "
           "USING (donor_id) "
           "ORDER BY (block_id)")
 
