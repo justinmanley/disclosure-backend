@@ -27,7 +27,7 @@ setup:
 	virtualenv . 
 	
 	source bin/activate \
-	    && pip install numpy>=1.9.2 \ # numpy has to be installed before other pip dependencies
+	    && pip install numpy>=1.9.2 \
 	    && pip install -r requirements.txt
 
 	source bin/activate \
